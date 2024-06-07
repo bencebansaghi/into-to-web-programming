@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", function() {
     initializeCode();
 })
 
+
 function initializeCode() {
     const submitData = document.getElementById("submit-data");
     submitData.addEventListener("click", function() {
