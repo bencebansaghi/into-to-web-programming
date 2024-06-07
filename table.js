@@ -31,11 +31,12 @@ function initializeCode() {
                         image.src = event.target.result;
                         image.width = 64;
                         image.height = 64;
-
+                
                         const imageCell = document.createElement("td");
                         imageCell.appendChild(image);
-
-                        newRow.appendChild(imageCell);
+                
+                        row.appendChild(imageCell);
+                        console.log("we here")
                     }
                     reader.readAsDataURL(imageFile);
                 }
