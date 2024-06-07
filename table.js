@@ -59,13 +59,19 @@ function initializeCode() {
         if (imageFile) {
             const reader = new FileReader();
             reader.onload = function(event) {
-                const image = document.createElement("img");
-                image.src = event.target.result;
-                image.width = 64;
-                image.height = 64;
+                try{
+                    const image = document.createElement("img");
+                    image.src = event.target.result;
+                    image.width = 64;
+                    image.height = 64;
 
-                const imageCell = document.createElement("td");
-                imageCell.appendChild(image);
+                    const imageCell = document.createElement("td");
+                    imageCell.appendChild(image);
+                }
+                catch(err){
+                    console.log(err);
+                    return;
+                }
 
                 newRow.appendChild(imageCell);
             }
