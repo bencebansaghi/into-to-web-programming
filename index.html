@@ -1,19 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <script src="index.js" defer></script>
+    <script src="table.js" defer></script>
     <title>Main page</title>
 </head>
 <body>
-    <h1>Hello world</h1>
-    <button id="my-button">Log hello world and change text</button>
-
-    <button id="add-data">Add item to list</button>
-    <textarea id="textarea"></textarea>
-    <p>List:
-        <ul id="my-list">
-
-        </ul>
-    </p>
+    <table id="user-table">
+        <thead>
+            <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Admin</th>
+            <th>Image</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+            <td>Webmaster</td>
+            <td>example1@email.com</td>
+            <td>X</td>
+            </tr>
+            <tr>
+            <td>User123</td>
+            <td>example2@email.com</td>
+            <td>-</td>
+            </tr>
+            <tr>
+            <td>AnotherUser222</td>
+            <td>example3@email.com</td>
+            <td>-</td>
+            </tr>
+        </tbody>
+    </table>
+    <input type="text" id="input-username" placeholder="Username">
+    <input type="text" id="input-email" placeholder="Email">
+    <label for="input-admin">Admin</label>
+    <input type="checkbox" id="input-admin">
+    <input type="file" id="input-image" accept="image/*">
+    <button id="submit-data">Submit</button>
+    <br>
+    <button id="empty-table">Empty table</button>
+    
 </body>
 </html>
