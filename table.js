@@ -60,7 +60,6 @@ function initializeCode() {
         if (imageFile) {
             const reader = new FileReader();
             reader.onload = function(event) {
-                try{
                     const image = document.createElement("img");
                     image.src = event.target.result;
                     image.width = 64;
@@ -68,11 +67,6 @@ function initializeCode() {
 
                     const imageCell = document.createElement("td");
                     imageCell.appendChild(image);
-                }
-                catch(err){
-                    console.log(err);
-                    return;
-                }
 
                 newRow.appendChild(imageCell);
             }
