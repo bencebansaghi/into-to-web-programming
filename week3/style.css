@@ -1,0 +1,54 @@
+:root {
+    --row_background: #f2f2f2;
+    --base_background: #ffffff;
+}
+
+body {
+    font-family: Verdana, Arial, sans-serif;
+}
+
+td {
+    padding: 6px;
+    border-bottom: 1px solid gray;
+}
+
+th {
+    background-color: #b7d0ff;
+    font: bold;
+    padding: 12px 0px 12px 6px;
+    border-bottom: 2px solid gray;
+}
+
+table {
+    border-collapse: collapse;
+    font-size: 16px;
+    text-align: left;
+    table-layout: fixed;
+    width: 100%;
+}
+
+.center {
+    margin: auto;
+    padding: 60px;
+    width: 60%;
+}
+
+h1 {
+    text-align: center;
+}
+
+tr:nth-child(even) {
+    background-color: var(--row_background);
+}
+
+tr:nth-child(odd) {
+    background-color: var(--base_background);
+}
+
+#tbody tr.high-employment {
+    background-color: #abffbd;
+}
+
+#tbody tr.low-employment {
+    background-color: #ff9e9e;
+}
