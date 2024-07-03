@@ -207,12 +207,18 @@ class GameScene extends Phaser.Scene {
         this.dudeAlive = true;
 
         // Creating bad guys
-        this.ghost = this.physics.add.sprite(game.config.width / 2, game.config.height / 2, "ghost_walk_0");
-        this.ghost.setCollideWorldBounds(true);
-        this.ghost.setSize(this.ghost.width * 0.2, this.ghost.height * 0.2);
-        this.ghost.setDepth(1);
+        this.ghosts = this.physics.add.group();
+        const numGhosts = 5;
 
+        for (let i = 0; i < numGhosts; i++) {
+            const ghost = this.ghosts.create(game.config.width / 2, game.config.height / 2, "ghost_walk_0");
+            ghost.setCollideWorldBounds(true);
+            ghost.setSize(ghost.width * 0.2, ghost.height * 0.2);
+            ghost.setDepth(1);
+        }
 
+        // Creating collectibles
+        //this.stars = this.physics.add.group({
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -225,34 +231,38 @@ class GameScene extends Phaser.Scene {
         });
 
         // Ghost movement
-        const moveGhostRandomly = () => {
+        const moveGhostRandomly = (ghost) => {
             const x = Phaser.Math.Between(50, this.cameras.main.width - 50);
             const y = Phaser.Math.Between(50, this.cameras.main.height - 50);
-
+        
             this.tweens.add({
-                targets: this.ghost,
+                targets: ghost,
                 x: x,
                 y: y,
                 duration: 5000,
                 ease: 'Quadratic',
                 onComplete: () => {
                     const randomDuration = Phaser.Math.Between(1000, 5000);
-                    setTimeout(moveGhostRandomly, randomDuration);
+                    setTimeout(() => moveGhostRandomly(ghost), randomDuration); // Correctly pass the ghost parameter
                 }
             });
         };
-        moveGhostRandomly();
+        
+        for (let i = 0; i < numGhosts; i++) {
+            moveGhostRandomly(this.ghosts.getChildren()[i]);
+        }
+        
 
         // Everything to do with death
         {
-            this.ghostDeath = () => {
+            this.ghostDeath = (dude, ghost) => {
                 this.doDeath();
-                this.ghost.anims.play('ghostAttack', true);
+                ghost.anims.play('ghostAttack', true);
                 setTimeout(() => {
                     this.showDeathScreen();
                 }, 700);
             };
-
+        
             this.doDeath = () => {
                 this.dude.stop();
                 this.dude.setVelocity(0);
@@ -262,17 +272,34 @@ class GameScene extends Phaser.Scene {
                 this.input.enabled = false;
                 this.input.keyboard.enabled = false;
                 this.tweens.killAll();
+        
+                // Stop the movement of all ghosts
+                this.ghosts.getChildren().forEach(ghost => {
+                    ghost.setVelocity(0);
+                    ghost.body.setAcceleration(0);
+                    ghost.body.setDrag(0);
+                    ghost.anims.stop();
+                });
+        
+                // Stop any animations currently playing on the dude
+                this.dude.anims.stop();
             };
-
+        
             this.showDeathScreen = () => {
                 this.game.renderer.snapshot((image) => {
                     this.scene.stop('GameScene');
                     this.scene.start('GameOverScene', { snapshot: image });
                 });
             };
-
-            this.physics.add.overlap(this.dude, this.ghost, this.ghostDeath, null, this);
+        
+            // Fix the overlap callback to work with multiple ghosts
+            this.physics.add.overlap(this.dude, this.ghosts, (dude, ghost) => {
+                if (this.dudeAlive) {
+                    this.ghostDeath(dude, ghost);
+                }
+            }, null, this);
         }
+        
 
 
         // Animations
@@ -461,7 +488,9 @@ class GameScene extends Phaser.Scene {
                 this.dude.anims.play('idle', true);
             }
 
-            this.ghost.anims.play('ghostWalk', true);
+            Phaser.Actions.Call(this.ghosts.getChildren(), function(ghost) {
+            ghost.anims.play('ghostWalk', true);
+            }, this);
         }
 
     }
