@@ -35,7 +35,17 @@ window.onload = function() {
 }
 
 function preload() {
-    this.load.spritesheet("dude", "char_a_p1/char_a_p1_0bas_humn_v01.png", {frameWidth: 64, frameHeight: 64});
+    // Sprite by Mana Seed, https://seliel-the-shaper.itch.io/character-base
+    this.load.spritesheet("dude", "assets/char_a_p1/char_a_p1_0bas_humn_v01.png", {frameWidth: 64, frameHeight: 64});
+
+    // Sprite by PiXeRaT, https://pixerat.itch.io/round-ghost
+    this.load.image("ghost_walk_0", "assets/ghost/round ghost walk/sprite_0.png");
+    this.load.image("ghost_walk_1", "assets/ghost/round ghost walk/sprite_1.png");
+    this.load.image("ghost_walk_2", "assets/ghost/round ghost walk/sprite_2.png");
+    this.load.image("ghost_walk_3", "assets/ghost/round ghost walk/sprite_3.png");
+    this.load.image("ghost_walk_4", "assets/ghost/round ghost walk/sprite_4.png");
+    this.load.image("ghost_walk_5", "assets/ghost/round ghost walk/sprite_5.png");
+
 }
 
 function create() {
@@ -46,6 +56,8 @@ function create() {
     const gridSize = 50;
 
     this.walls = this.physics.add.staticGroup();
+    this.walls.setDepth(0);
+
     let totalPossibleWalls = cols * rows * 4;
     const existingWalls = new Set(); // Not used for anything rn, but could be useful in the future
     const emptyWalls = new Set();
@@ -80,7 +92,7 @@ function create() {
 
     const drawWalls = () => {
         graphics.clear();
-        graphics.lineStyle(2, 0xffffff, 1);
+        graphics.lineStyle(2, 0xff0000, 1);
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < cols; j++) {
                 const cell = grid[i][j];
@@ -179,12 +191,18 @@ function create() {
     }
 
     // Creating the player
-    dude = this.physics.add.sprite(game.config.width / 3, game.config.height / 3, "dude");
-    dude.setCollideWorldBounds(true);
-    dude.body.setSize(dude.width * 0.3, dude.height * 0.5);
-    this.physics.add.collider(dude, this.walls);
+    this.dude = this.physics.add.sprite(game.config.width / 3, game.config.height / 3, "dude");
+    this.dude.setCollideWorldBounds(true);
+    this.dude.body.setSize(this.dude.width * 0.3, this.dude.height * 0.5);
+    this.physics.add.collider(this.dude, this.walls);
 
     // Creating bad guys
+    this.ghost = this.physics.add.sprite(game.config.width / 2, game.config.height / 2, "ghost_walk_0");
+    this.ghost.setCollideWorldBounds(true);
+    this.ghost.setSize(this.ghost.width * 0.2, this.ghost.height * 0.2);
+    this.physics.add.overlap(this.dude, this.ghost, showDeathScreen, null, this);
+    this.ghost.setDepth(1);
+
 
 
     // Input
@@ -197,8 +215,29 @@ function create() {
         shift: Phaser.Input.Keyboard.KeyCodes.SHIFT
     });
 
+    // Ghost movement
+    const moveGhostRandomly = () => {
+        const x = Phaser.Math.Between(50, this.cameras.main.width - 50);
+        const y = Phaser.Math.Between(50, this.cameras.main.height - 50);
+
+        this.tweens.add({
+            targets: this.ghost,
+            x: x,
+            y: y,
+            duration: 5000,
+            ease: 'Quadratic',
+            onComplete: () => {
+            const randomDuration = Phaser.Math.Between(1000, 5000);
+            setTimeout(moveGhostRandomly, randomDuration);
+            }
+        });
+    };
+    moveGhostRandomly();
+
     // Animations
     {
+
+    // Dude animations
     this.anims.create({
         key: 'walkDown',
         frames: this.anims.generateFrameNumbers('dude', { start: 32, end: 37 }),
@@ -299,13 +338,58 @@ function create() {
             { key: 'dude', frame: 23, duration: 40 }
         ],
         repeat: -1
-    });}
+    });
+
+    // Ghost animations
+    this.anims.create({
+        key: 'ghostWalk',
+        frames: [
+            { key: 'ghost_walk_0', duration: 100 },
+            { key: 'ghost_walk_1', duration: 100 },
+            { key: 'ghost_walk_2', duration: 100 },
+            { key: 'ghost_walk_3', duration: 100 },
+            { key: 'ghost_walk_4', duration: 100 },
+            { key: 'ghost_walk_5', duration: 100 },
+            { key: 'ghost_walk_4', duration: 100 },
+            { key: 'ghost_walk_3', duration: 100 },
+            { key: 'ghost_walk_2', duration: 100 },
+            { key: 'ghost_walk_1', duration: 100 }
+        ],
+        repeat: -1
+    });
+    }
+
+    this.cleanupScene = () => {
+        this.isSceneActive = false;
+
+        // Clear any pending timeouts
+        if (this.ghostMoveTimeout) {
+            clearTimeout(this.ghostMoveTimeout);
+        }
+
+        // Stop all tweens
+        this.tweens.killAll();
+
+        // Destroy ghost sprite
+        if (this.ghost) {
+            this.ghost.destroy();
+        }
+        if (this.dude) {
+            this.dude.destroy();
+        }
+        if (this.walls) {
+            this.walls.destroy();
+        }
+        // Clear any pending events
+        this.time.removeAllEvents();
+
+    };
 }
 
 function update() {
     // Movement related stuff
     {
-    dude.setVelocity(0);
+    this.dude.setVelocity(0);
 
     let isRunning = cursors.shift.isDown || wasd.shift.isDown;
     let speed = isRunning ? 120 : 80;
@@ -330,24 +414,32 @@ function update() {
         moveY *= 0.7071;
     }
 
-    dude.setVelocityX(speed * moveX);
-    dude.setVelocityY(speed * moveY);
+    this.dude.setVelocityX(speed * moveX);
+    this.dude.setVelocityY(speed * moveY);
 
     if (moveY < 0) {
-        dude.anims.play(isRunning ? 'runUp' : 'walkUp', true);
+        this.dude.anims.play(isRunning ? 'runUp' : 'walkUp', true);
     } else if (moveY > 0) {
-        dude.anims.play(isRunning ? 'runDown' : 'walkDown', true);
+        this.dude.anims.play(isRunning ? 'runDown' : 'walkDown', true);
     } else if (moveX < 0) {
-        dude.anims.play(isRunning ? 'runLeft' : 'walkLeft', true);
+        this.dude.anims.play(isRunning ? 'runLeft' : 'walkLeft', true);
     } else if (moveX > 0) {
-        dude.anims.play(isRunning ? 'runRight' : 'walkRight', true);
+        this.dude.anims.play(isRunning ? 'runRight' : 'walkRight', true);
     }
     
-    if (dude.body.velocity.x === 0 && dude.body.velocity.y === 0) {
+    if (this.dude.body.velocity.x === 0 && this.dude.body.velocity.y === 0) {
         //dude.anims.play('victoryDance', true);
-        dude.anims.play('idle', true);
+        this.dude.anims.play('idle', true);
     }
     }
+    this.ghost.anims.play('ghostWalk', true);
 }
 
+function showDeathScreen() {
+    this.cleanupScene();
+    this.scene.stop();
+    this.input.enabled = false;
+    console.log("You died!");
 
+    // Optionally, you can add a restart button or any other UI elements here
+}
