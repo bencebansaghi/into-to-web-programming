@@ -55,6 +55,14 @@ class GameScene extends Phaser.Scene {
         this.load.image("ghost_attack_5", "assets/ghost/round ghost attack/sprite_5.png");
         this.load.image("ghost_attack_6", "assets/ghost/round ghost attack/sprite_6.png");
 
+        // Collectables1 by xvideosman, https://xvideosman.itch.io/collectables-pack
+        
+
+        // Collectables2 by xvideosman, https://xvideosman.itch.io/collectables-2
+        //this.load.aseprite("collectables2", "assets/Collectables/Collectables2.png", "assets/Collectables/Collectables2.json");
+        this.load.spritesheet("collectables2", "assets/Collectables/Collectables2.png", { frameWidth: 16, frameHeight: 16 });
+
+
     }
 
     create() {
@@ -218,7 +226,9 @@ class GameScene extends Phaser.Scene {
         }
 
         // Creating collectibles
-        //this.stars = this.physics.add.group({
+        this.collectables = this.physics.add.group();
+        this.boots = this.collectables.create(100, 100, "collectables2", 8);
+        
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -269,8 +279,6 @@ class GameScene extends Phaser.Scene {
                 this.dude.body.setAcceleration(0);
                 this.dude.body.setDrag(0);
                 this.dudeAlive = false;
-                this.input.enabled = false;
-                this.input.keyboard.enabled = false;
                 this.tweens.killAll();
         
                 // Stop the movement of all ghosts
