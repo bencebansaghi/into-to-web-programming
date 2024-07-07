@@ -37,8 +37,10 @@ class GameScene extends Phaser.Scene {
         super({ key: 'GameScene' });
         this.score = 0;
         this.PlayerSpeedMultiplier = 1;
-        this.targetScore = this.generateRandomScoreTarget(10, 30);
+        this.targetScore = this.generateRandomScoreTarget(50, 100);
+        this.hasStopwatch = false;
         this.popupMessages = [];
+        this.tweensList = new Set();
     }
 
     preload() {
@@ -65,8 +67,10 @@ class GameScene extends Phaser.Scene {
         this.load.spritesheet("collectables1", "assets/Collectables/Collectables1.png", { frameWidth: 16, frameHeight: 16 });
 
         // Collectables2 by xvideosman, https://xvideosman.itch.io/collectables-2
-        //this.load.aseprite("collectables2", "assets/Collectables/Collectables2.png", "assets/Collectables/Collectables2.json");
         this.load.spritesheet("collectables2", "assets/Collectables/Collectables2.png", { frameWidth: 16, frameHeight: 16 });
+
+        // Collectables3 by xvideosman, https://xvideosman.itch.io/collectables-3
+        this.load.spritesheet("collectables3", "assets/Collectables/Collectables3.png", { frameWidth: 16, frameHeight: 16 });
 
 
     }
@@ -235,8 +239,20 @@ class GameScene extends Phaser.Scene {
         // Creating collectibles
         this.collectables = this.physics.add.group();
         this.boot = this.collectables.create(Phaser.Math.Between(0, game.config.width), Phaser.Math.Between(0, game.config.height), "collectables2", 18).disableBody(true, true);
-        this.boot.name="boot"
+        this.boot.name="boot";
         this.createCollectableAnimation(this.boot, "collectables2", 18);
+
+        this.bomb = this.collectables.create(Phaser.Math.Between(0, game.config.width), Phaser.Math.Between(0, game.config.height), "collectables3", 12).disableBody(true, true);
+        this.bomb.name="bomb";
+        this.createCollectableAnimation(this.bomb, "collectables3", 12);
+
+        this.money = this.collectables.create(Phaser.Math.Between(0, game.config.width), Phaser.Math.Between(0, game.config.height), "collectables1", 12).disableBody(true, true);
+        this.money.name="money";
+        this.createCollectableAnimation(this.money, "collectables1", 12);
+
+        this.stopwatch = this.collectables.create(Phaser.Math.Between(0, game.config.width), Phaser.Math.Between(0, game.config.height), "collectables1", 30).disableBody(true, true);
+        this.stopwatch.name="stopwatch";
+        this.createCollectableAnimation(this.stopwatch, "collectables1", 30);
         
         this.collectables.stars = this.physics.add.group();
         this.physics.add.overlap(this.dude, this.collectables.stars, (dude, star) => {
@@ -277,17 +293,19 @@ class GameScene extends Phaser.Scene {
             const x = Phaser.Math.Between(50, this.cameras.main.width - 50);
             const y = Phaser.Math.Between(50, this.cameras.main.height - 50);
         
-            this.tweens.add({
+            let tween= this.tweens.add({
                 targets: ghost,
                 x: x,
                 y: y,
                 duration: 5000,
                 ease: 'Quadratic',
                 onComplete: () => {
+                    this.tweensList.delete(tween);
                     const randomDuration = Phaser.Math.Between(1000, 5000);
                     setTimeout(() => moveGhostRandomly(ghost), randomDuration);
                 }
             });
+            this.tweensList.add(tween);
             }
         };
         
@@ -344,8 +362,28 @@ class GameScene extends Phaser.Scene {
         // Collecting items
         this.physics.add.overlap(this.dude, this.boot, (dude, boot) => {
             this.PlayerSpeedMultiplier *= 1.5;
-            this.displayPopupMessage("You got a boot! You can now run faster!");
+            this.displayPopupMessage("You got boots! You can now run faster!");
             boot.destroy();
+        }, null, this);
+
+        this.physics.add.overlap(this.dude, this.bomb, (dude, bomb) => {
+            // Gotta implement bomb functionality later
+            this.displayPopupMessage("You got a bomb! You can use it once to destroy a wall by clicking on it!");
+            bomb.destroy();
+        }, null, this);
+
+        this.physics.add.overlap(this.dude, this.money, (dude, money) => {
+            this.displayPopupMessage("You got some money which is worth 50 points!");
+            this.score += 50;
+            this.scoreText.setText('Score: ' + this.score);
+            this.checkScoreTarget();
+            money.destroy();
+        }, null, this);
+
+        this.physics.add.overlap(this.dude, this.stopwatch, (dude, stopwatch) => {
+            this.displayPopupMessage("You got a stopwatch! You can freeze time for 5 seconds by pressing the spacebar!");
+            this.hasStopwatch = true;
+            stopwatch.destroy();
         }, null, this);
 
         this.displayPopupMessage('Once you reach ' + this.targetScore + ' points, a unique item will spawn!');
@@ -546,7 +584,7 @@ class GameScene extends Phaser.Scene {
     checkScoreTarget() {
         if (this.score >= this.targetScore) {
             this.onTargetScoreReached();
-            this.targetScore = this.score+this.generateRandomScoreTarget(200, 250);
+            this.targetScore = this.score+this.generateRandomScoreTarget(50, 100);
             this.displayPopupMessage('You reached ' + this.score + ' points! The target score is now ' + this.targetScore + ' points!');
         }
     }
@@ -602,6 +640,11 @@ class GameScene extends Phaser.Scene {
                 this.dude.anims.play(isRunning ? 'runRight' : 'walkRight', true);
             }
 
+            if (this.hasStopwatch && this.cursors.space.isDown) {
+                this.freezeTime();
+                this.hasStopwatch = false;
+            }
+
             if (this.dude.body.velocity.x === 0 && this.dude.body.velocity.y === 0) {
                 //dude.anims.play('victoryDance', true);
                 this.dude.anims.play('idle', true);
@@ -619,7 +662,27 @@ class GameScene extends Phaser.Scene {
                 star.anims.play(star.name, true);
             });
         }
-
+    }
+    freezeTime() {
+        // Pause all enemy animations
+        this.ghosts.getChildren().forEach(ghost => {
+            ghost.anims.pause();
+        });
+    
+        // Pause all tweens in this.tweensList
+        this.tweensList.forEach(tween => {
+            tween.pause();
+        });
+    
+        // Set a timer to resume all tweens and animations after 5 seconds
+        this.time.delayedCall(5000, () => {
+            this.ghosts.getChildren().forEach(ghost => {
+                ghost.anims.resume();
+            });
+            this.tweensList.forEach(tween => {
+                tween.resume();
+            });
+        });
     }
 }
 
