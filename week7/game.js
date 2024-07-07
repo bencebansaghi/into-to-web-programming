@@ -1,5 +1,7 @@
-WIDTH = 1200;
-HEIGHT = 800;
+const GRIDSIZE = 50; // This size works well with the sprites used
+const WIDTH = Math.floor(window.innerWidth / GRIDSIZE) * GRIDSIZE;
+const HEIGHT = Math.floor(window.innerHeight / GRIDSIZE) * GRIDSIZE;
+let game;
 
 window.onload = function () {
     let gameConfig = {
@@ -33,6 +35,10 @@ window.onload = function () {
 class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
+        this.score = 0;
+        this.PlayerSpeedMultiplier = 1;
+        this.targetScore = this.generateRandomScoreTarget(10, 30);
+        this.popupMessages = [];
     }
 
     preload() {
@@ -56,7 +62,7 @@ class GameScene extends Phaser.Scene {
         this.load.image("ghost_attack_6", "assets/ghost/round ghost attack/sprite_6.png");
 
         // Collectables1 by xvideosman, https://xvideosman.itch.io/collectables-pack
-        
+        this.load.spritesheet("collectables1", "assets/Collectables/Collectables1.png", { frameWidth: 16, frameHeight: 16 });
 
         // Collectables2 by xvideosman, https://xvideosman.itch.io/collectables-2
         //this.load.aseprite("collectables2", "assets/Collectables/Collectables2.png", "assets/Collectables/Collectables2.json");
@@ -68,15 +74,15 @@ class GameScene extends Phaser.Scene {
     create() {
         // Wall stuff
         {
-            const cols = WIDTH / 100 * 2;
-            const rows = HEIGHT / 100 * 2;
-            const gridSize = 50;
+            const cols = WIDTH / GRIDSIZE;
+            const rows = HEIGHT / GRIDSIZE;
 
             this.walls = this.physics.add.staticGroup();
             this.walls.setDepth(0);
 
             let totalPossibleWalls = cols * rows * 4;
             const existingWalls = new Set(); // Not used for anything rn, but could be useful in the future
+
             const emptyWalls = new Set();
 
             for (let i = 0; i < rows; i++) {
@@ -113,41 +119,41 @@ class GameScene extends Phaser.Scene {
                 for (let i = 0; i < rows; i++) {
                     for (let j = 0; j < cols; j++) {
                         const cell = grid[i][j];
-                        const x = j * gridSize;
-                        const y = i * gridSize;
-                        const hitbox = (gridSize - 40, 0);
+                        const x = j * GRIDSIZE;
+                        const y = i * GRIDSIZE;
+                        const hitbox = (GRIDSIZE - 40, 0);
 
                         if (cell.top) {
-                            graphics.lineBetween(x, y, x + gridSize, y);
-                            graphics.generateTexture('lineTextureTop', gridSize, 2);
-                            let sprite = this.add.sprite(x + gridSize / 2, y, 'lineTextureTop');
+                            graphics.lineBetween(x, y, x + GRIDSIZE, y);
+                            graphics.generateTexture('lineTextureTop', GRIDSIZE, 2);
+                            let sprite = this.add.sprite(x + GRIDSIZE / 2, y, 'lineTextureTop');
                             this.walls.add(sprite);
                             sprite.body.setSize(hitbox).setOffset(0, 3);
                             existingWalls.add(`${i},${j},0`);
                             emptyWalls.delete(`${i},${j},0`);
                         }
                         if (cell.right) {
-                            graphics.lineBetween(x + gridSize, y, x + gridSize, y + gridSize);
-                            graphics.generateTexture('lineTextureRight', 2, gridSize);
-                            let sprite = this.add.sprite(x + gridSize, y + gridSize / 2, 'lineTextureRight');
+                            graphics.lineBetween(x + GRIDSIZE, y, x + GRIDSIZE, y + GRIDSIZE);
+                            graphics.generateTexture('lineTextureRight', 2, GRIDSIZE);
+                            let sprite = this.add.sprite(x + GRIDSIZE, y + GRIDSIZE / 2, 'lineTextureRight');
                             this.walls.add(sprite);
                             sprite.body.setSize(hitbox).setOffset(0, 3);
                             existingWalls.add(`${i},${j},1`);
                             emptyWalls.delete(`${i},${j},1`);
                         }
                         if (cell.bottom) {
-                            graphics.lineBetween(x, y + gridSize, x + gridSize, y + gridSize);
-                            graphics.generateTexture('lineTextureBottom', gridSize, 2);
-                            let sprite = this.add.sprite(x + gridSize / 2, y + gridSize, 'lineTextureBottom');
+                            graphics.lineBetween(x, y + GRIDSIZE, x + GRIDSIZE, y + GRIDSIZE);
+                            graphics.generateTexture('lineTextureBottom', GRIDSIZE, 2);
+                            let sprite = this.add.sprite(x + GRIDSIZE / 2, y + GRIDSIZE, 'lineTextureBottom');
                             this.walls.add(sprite);
                             sprite.body.setSize(hitbox).setOffset(0, 3);
                             existingWalls.add(`${i},${j},2`);
                             emptyWalls.delete(`${i},${j},2`);
                         }
                         if (cell.left) {
-                            graphics.lineBetween(x, y, x, y + gridSize);
-                            graphics.generateTexture('lineTextureLeft', 2, gridSize);
-                            let sprite = this.add.sprite(x, y + gridSize / 2, 'lineTextureLeft');
+                            graphics.lineBetween(x, y, x, y + GRIDSIZE);
+                            graphics.generateTexture('lineTextureLeft', 2, GRIDSIZE);
+                            let sprite = this.add.sprite(x, y + GRIDSIZE / 2, 'lineTextureLeft');
                             this.walls.add(sprite);
                             sprite.body.setSize(hitbox).setOffset(0, 3);
                             existingWalls.add(`${i},${j},3`);
@@ -158,7 +164,6 @@ class GameScene extends Phaser.Scene {
             }
 
             const addRandomWall = () => {
-
                 let row, col, side;
                 let wallKey;
                 if (emptyWalls.size > 0) {
@@ -201,7 +206,9 @@ class GameScene extends Phaser.Scene {
                 loop: true
             });
 
-            for (let i = 0; i < 50; i++) {
+            // The number of walls to add initially
+            let initWallCount = Math.floor(HEIGHT * WIDTH / 10000);
+            for (let i = 0; i < initWallCount; i++) {
                 addRandomWall();
             }
             drawWalls();
@@ -213,7 +220,7 @@ class GameScene extends Phaser.Scene {
         this.dude.body.setSize(this.dude.width * 0.3, this.dude.height * 0.5);
         this.physics.add.collider(this.dude, this.walls);
         this.dudeAlive = true;
-
+        
         // Creating bad guys
         this.ghosts = this.physics.add.group();
         const numGhosts = 5;
@@ -227,8 +234,32 @@ class GameScene extends Phaser.Scene {
 
         // Creating collectibles
         this.collectables = this.physics.add.group();
-        this.boots = this.collectables.create(100, 100, "collectables2", 8);
+        this.boot = this.collectables.create(Phaser.Math.Between(0, game.config.width), Phaser.Math.Between(0, game.config.height), "collectables2", 18).disableBody(true, true);
+        this.boot.name="boot"
+        this.createCollectableAnimation(this.boot, "collectables2", 18);
         
+        this.collectables.stars = this.physics.add.group();
+        this.physics.add.overlap(this.dude, this.collectables.stars, (dude, star) => {
+            star.disableBody(true, true);
+            this.score += 10;
+            this.scoreText.setText('Score: ' + this.score);
+            this.checkScoreTarget();
+        });  
+        this.generateStar = (x,y) => {
+            const star = this.collectables.stars.create(x, y, "collectables1", 10);
+            star.name="star"
+            this.createCollectableAnimation(star, "collectables1", 10);
+        }
+        this.addStar = this.time.addEvent({
+            delay: 3000,
+            callback: () => {
+                const x = Phaser.Math.Between(0, game.config.width);
+                const y = Phaser.Math.Between(0, game.config.height);
+                this.generateStar(x, y);
+            },
+            callbackScope: this,
+            loop: true,
+        });
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -242,6 +273,7 @@ class GameScene extends Phaser.Scene {
 
         // Ghost movement
         const moveGhostRandomly = (ghost) => {
+            if (this.cameras.main){
             const x = Phaser.Math.Between(50, this.cameras.main.width - 50);
             const y = Phaser.Math.Between(50, this.cameras.main.height - 50);
         
@@ -253,9 +285,10 @@ class GameScene extends Phaser.Scene {
                 ease: 'Quadratic',
                 onComplete: () => {
                     const randomDuration = Phaser.Math.Between(1000, 5000);
-                    setTimeout(() => moveGhostRandomly(ghost), randomDuration); // Correctly pass the ghost parameter
+                    setTimeout(() => moveGhostRandomly(ghost), randomDuration);
                 }
             });
+            }
         };
         
         for (let i = 0; i < numGhosts; i++) {
@@ -300,15 +333,28 @@ class GameScene extends Phaser.Scene {
                 });
             };
         
-            // Fix the overlap callback to work with multiple ghosts
+            // Collision with ghosts
             this.physics.add.overlap(this.dude, this.ghosts, (dude, ghost) => {
                 if (this.dudeAlive) {
                     this.ghostDeath(dude, ghost);
                 }
             }, null, this);
         }
-        
 
+        // Collecting items
+        this.physics.add.overlap(this.dude, this.boot, (dude, boot) => {
+            this.PlayerSpeedMultiplier *= 1.5;
+            this.displayPopupMessage("You got a boot! You can now run faster!");
+            boot.destroy();
+        }, null, this);
+
+        this.displayPopupMessage('Once you reach ' + this.targetScore + ' points, a unique item will spawn!');
+
+        this.scoreText = this.add.text(10, 10, 'Score: 0', {
+            font: '16px Arial',
+            fill: '#ffffff',
+            backgroundColor: '#000000'
+        }).setScrollFactor(0);
 
         // Animations
         {
@@ -446,9 +492,74 @@ class GameScene extends Phaser.Scene {
                     { key: 'ghost_attack_6', duration: 100 }
                 ]
             });
+
         }
 
+    }
+    
+    displayPopupMessage(message) {
+        // Create a new text object for the popup message
+        const popup = this.add.text(game.config.width - 10, 10, message, {
+            font: '16px Arial',
+            fill: '#ffffff',
+            backgroundColor: '#000000'
+        }).setScrollFactor(0).setVisible(true).setOrigin(1, 0);
 
+        // Add the popup to the array of active popup messages
+        this.popupMessages.push(popup);
+
+        // Adjust positions of all active popup messages
+        this.adjustPopupMessagePositions();
+
+        // Remove the popup message after 3 seconds
+        this.time.delayedCall(5000, () => {
+            popup.destroy();
+            this.popupMessages = this.popupMessages.filter(msg => msg !== popup);
+            this.adjustPopupMessagePositions();
+        });
+    }
+
+    adjustPopupMessagePositions() {
+        // Adjust the Y position of each active popup message
+        this.popupMessages.forEach((popup, index) => {
+            popup.setY(10 + index * 20); // Adjust 20 pixels below the previous message
+        });
+    }
+
+
+    createCollectableAnimation(collectable, textureKey, startFrame) {
+        this.anims.create({
+            key: collectable.name,
+            frames: [
+                { key: textureKey, frame: startFrame, duration: 500 },
+                { key: textureKey, frame: startFrame + 1, duration: 500 },
+            ],
+            repeat: -1
+        });
+    }
+
+    generateRandomScoreTarget(min, max) {
+        const num=Phaser.Math.Between(min, max);
+        const target=num-(num%10);
+        return target;
+    }
+    checkScoreTarget() {
+        if (this.score >= this.targetScore) {
+            this.onTargetScoreReached();
+            this.targetScore = this.score+this.generateRandomScoreTarget(200, 250);
+            this.displayPopupMessage('You reached ' + this.score + ' points! The target score is now ' + this.targetScore + ' points!');
+        }
+    }
+    onTargetScoreReached() {
+        if (this.collectables.getChildren().length != 0) {
+            this.displayPopupMessage("You reached the target score! A unique item has spawned!");
+            const randomChild = Phaser.Utils.Array.GetRandom(this.collectables.getChildren());
+            randomChild.enableBody(false, randomChild.x, randomChild.y, true, true);
+        } else {
+            this.displayPopupMessage("You reached the target score, but there are no items left to spawn!");
+        }
+
+        
     }
 
     update() {
@@ -456,7 +567,7 @@ class GameScene extends Phaser.Scene {
             this.dude.setVelocity(0);
 
             let isRunning = this.cursors.shift.isDown || this.wasd.shift.isDown;
-            let speed = isRunning ? 120 : 80;
+            let speed = isRunning ? 120*this.PlayerSpeedMultiplier : 80*this.PlayerSpeedMultiplier;
             let moveX = 0;
             let moveY = 0;
 
@@ -499,6 +610,14 @@ class GameScene extends Phaser.Scene {
             Phaser.Actions.Call(this.ghosts.getChildren(), function(ghost) {
             ghost.anims.play('ghostWalk', true);
             }, this);
+
+            this.collectables.getChildren().forEach(collectable => {
+                collectable.anims.play(collectable.name, true);
+            });
+
+            this.collectables.stars.getChildren().forEach(star => {
+                star.anims.play(star.name, true);
+            });
         }
 
     }
@@ -516,6 +635,7 @@ class MainMenuScene extends Phaser.Scene {
             .setInteractive();
 
         startButton.on('pointerdown', () => {
+            this.scene.stop('MainMenuScene');
             this.scene.start('GameScene');
         });
     }
@@ -531,6 +651,10 @@ class GameOverScene extends Phaser.Scene {
             const snapshot = data.snapshot;
 
             // Create a texture from the snapshot
+            if (this.textures.exists('snapshot')) {
+                this.textures.remove('snapshot');
+            }
+            
             this.textures.addImage('snapshot', snapshot);
 
             // Create a sprite from the texture
