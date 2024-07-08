@@ -36,13 +36,18 @@ class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
         this.score = 0;
-        this.PlayerSpeedMultiplier = 1;
-        this.targetScore = this.generateRandomScoreTarget(50, 100);
         this.hasStopwatch = false;
         this.hasBomb=false;
         this.popupMessages = [];
         this.tweensList = new Set();
         this.bombUseCounter=5;
+    }
+
+    init(data) {
+        this.difficulty = data.difficulty;
+        this.targetScore = this.generateRandomScoreTarget(50*this.difficulty, 50+50*this.difficulty);
+        this.PlayerSpeedMultiplier = 1.25-this.difficulty*0.25;
+        this.ghostsSpawned = 2 + this.difficulty * 3;
     }
 
     preload() {
@@ -252,9 +257,8 @@ class GameScene extends Phaser.Scene {
         
         // Creating bad guys
         this.ghosts = this.physics.add.group();
-        const numGhosts = 5;
 
-        for (let i = 0; i < numGhosts; i++) {
+        for (let i = 0; i < this.ghostsSpawned; i++) {
             const ghost = this.ghosts.create(game.config.width / 2, game.config.height / 2, "ghost_walk_0");
             ghost.setCollideWorldBounds(true);
             ghost.setSize(ghost.width * 0.2, ghost.height * 0.2);
@@ -342,7 +346,7 @@ class GameScene extends Phaser.Scene {
             }
         };
         
-        for (let i = 0; i < numGhosts; i++) {
+        for (let i = 0; i < this.ghostsSpawned; i++) {
             moveGhostRandomly(this.ghosts.getChildren()[i]);
         }
         
@@ -418,7 +422,7 @@ class GameScene extends Phaser.Scene {
             this.showDeathScreen = () => {
                 this.game.renderer.snapshot((image) => {
                     this.scene.stop('GameScene');
-                    this.scene.start('GameOverScene', { snapshot: image });
+                    this.scene.start('GameOverScene', { snapshot: image, score: this.score });
                 });
             };
         
@@ -676,7 +680,7 @@ class GameScene extends Phaser.Scene {
     checkScoreTarget() {
         if (this.score >= this.targetScore) {
             this.onTargetScoreReached();
-            this.targetScore = this.score+this.generateRandomScoreTarget(50, 100);
+            this.targetScore = this.score+this.generateRandomScoreTarget(50*this.difficulty, 50+50*this.difficulty);
             this.displayPopupMessage('You reached ' + this.score + ' points! The target score is now ' + this.targetScore + ' points!');
         }
     }
@@ -795,14 +799,34 @@ class MainMenuScene extends Phaser.Scene {
     }
 
     create() {
-        this.add.text(WIDTH / 2, HEIGHT / 2, 'Main Menu', { fill: '#fff' }).setOrigin(0.5);
-        const startButton = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 50, 'Start Game', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' })
-            .setOrigin(0.5, 0.5)
-            .setInteractive();
+        const buttonConfig = {
+            fontSize: '28px',
+            fill: '#fff',
+            backgroundColor: '#000',
+            padding: 10
+        };
+        this.add.text(WIDTH / 2, HEIGHT / 2-300, 'Main Menu', { fill: '#fff', fontSize: '24px' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2 -250, 'Choose a difficulty', { fill: '#fff', fontSize: '20px' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2 - 200, 'This will affect player speed, amounts of ghosts spawned\nand score needed to progress and get items.', { fill: '#fff', fontSize: '12px', align: 'center' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2 - 125, 'Recommended to use easier mode for smaller displays', { fill: '#fff', fontSize: '12px' }).setOrigin(0.5);
+        const easyButton = this.add.text(WIDTH / 2, HEIGHT / 2-50, 'Easy mode', buttonConfig).setOrigin(0.5, 0.5).setInteractive();
+        const mediumButton = this.add.text(WIDTH / 2, HEIGHT / 2, 'Medium mode', buttonConfig).setOrigin(0.5, 0.5).setInteractive();
+        const hardButton = this.add.text(WIDTH / 2, HEIGHT / 2 + 50, 'Hard mode', buttonConfig).setOrigin(0.5, 0.5).setInteractive();
+        this.add.text(WIDTH / 2, HEIGHT / 2 + 100, 'Controls: Arrow keys or WASD to move, Shift to run, Space to freeze time, Mouse to use bomb', { fill: '#fff', fontSize: '12px' }).setOrigin(0.5);
 
-        startButton.on('pointerdown', () => {
+        easyButton.on('pointerdown', () => {
             this.scene.stop('MainMenuScene');
-            this.scene.start('GameScene');
+            this.scene.start('GameScene', { difficulty: 1 });
+        });
+
+        mediumButton.on('pointerdown', () => {
+            this.scene.stop('MainMenuScene');
+            this.scene.start('GameScene', { difficulty: 2 });
+        });
+
+        hardButton.on('pointerdown', () => {
+            this.scene.stop('MainMenuScene');
+            this.scene.start('GameScene', { difficulty: 3 });
         });
     }
 }
@@ -813,6 +837,16 @@ class GameOverScene extends Phaser.Scene {
     }
 
     create(data) {
+        const currentScore = data.score || 0;
+        const highScore = localStorage.getItem('highScore') || 0;
+
+        if (currentScore > highScore) {
+            localStorage.setItem('highScore', currentScore);
+        }
+
+        this.add.text(WIDTH / 2, HEIGHT / 2 - 50, `Score: ${currentScore}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2, `High Score: ${Math.max(currentScore, highScore)}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
+
         if (data.snapshot) {
             const snapshot = data.snapshot;
 
@@ -831,10 +865,11 @@ class GameOverScene extends Phaser.Scene {
                 duration: 4000,
                 ease: 'Cubic',
             });
-        };
+        }
+
         setTimeout(() => {
-            this.add.text(WIDTH / 2, HEIGHT / 2, 'Game Over', { fill: '#ff0000', fontSize: '48px', fontWeight: 'bold' }).setOrigin(0.5);
-            const restartButton = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 50, 'Restart Game', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' })
+            this.add.text(WIDTH / 2, HEIGHT / 2 - 125, 'Game Over', { fill: '#ff0000', fontSize: '55px', fontWeight: 'bold' }).setOrigin(0.5);
+            const restartButton = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 100, 'Restart Game', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' })
                 .setOrigin(0.5, 0.5)
                 .setInteractive();
 
@@ -845,4 +880,5 @@ class GameOverScene extends Phaser.Scene {
         }, 750);
     }
 }
+
 
