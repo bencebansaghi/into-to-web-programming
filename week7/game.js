@@ -39,15 +39,17 @@ class GameScene extends Phaser.Scene {
         this.PlayerSpeedMultiplier = 1;
         this.targetScore = this.generateRandomScoreTarget(50, 100);
         this.hasStopwatch = false;
+        this.hasBomb=false;
         this.popupMessages = [];
         this.tweensList = new Set();
+        this.bombUseCounter=5;
     }
 
     preload() {
-        // Sprite by Mana Seed, https://seliel-the-shaper.itch.io/character-base
+        // Character base by Mana Seed, https://seliel-the-shaper.itch.io/character-base
         this.load.spritesheet("dude", "assets/char_a_p1/char_a_p1_0bas_humn_v01.png", { frameWidth: 64, frameHeight: 64 });
 
-        // Sprite by PiXeRaT, https://pixerat.itch.io/round-ghost
+        // Round ghost by PiXeRaT, https://pixerat.itch.io/round-ghost
         this.load.image("ghost_walk_0", "assets/ghost/round ghost walk/sprite_0.png");
         this.load.image("ghost_walk_1", "assets/ghost/round ghost walk/sprite_1.png");
         this.load.image("ghost_walk_2", "assets/ghost/round ghost walk/sprite_2.png");
@@ -72,23 +74,22 @@ class GameScene extends Phaser.Scene {
         // Collectables3 by xvideosman, https://xvideosman.itch.io/collectables-3
         this.load.spritesheet("collectables3", "assets/Collectables/Collectables3.png", { frameWidth: 16, frameHeight: 16 });
 
-
+        // Zombie - simple, becomes projectile by ironbutterfly, https://ironnbutterfly.itch.io/zombie-sprite
+        this.load.spritesheet("zombie", "assets/zombie/Zombie.png", { frameWidth: 32, frameHeight: 32 });
     }
 
     create() {
         // Wall stuff
         {
-            const cols = WIDTH / GRIDSIZE;
-            const rows = HEIGHT / GRIDSIZE;
-
+            const cols = Math.floor(WIDTH / GRIDSIZE);
+            const rows = Math.floor(HEIGHT / GRIDSIZE);
+        
             this.walls = this.physics.add.staticGroup();
             this.walls.setDepth(0);
-
-            let totalPossibleWalls = cols * rows * 4;
-            const existingWalls = new Set(); // Not used for anything rn, but could be useful in the future
-
+        
+            const existingWalls = new Set();
             const emptyWalls = new Set();
-
+        
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
                     emptyWalls.add(`${i},${j},0`);
@@ -97,26 +98,18 @@ class GameScene extends Phaser.Scene {
                     emptyWalls.add(`${i},${j},3`);
                 }
             }
-
+        
             const grid = [];
             for (let i = 0; i < rows; i++) {
                 const row = [];
                 for (let j = 0; j < cols; j++) {
-                    let top = false;
-                    let right = false;
-                    let bottom = false;
-                    let left = false;
-                    if (i === 0) top = true;
-                    if (j === cols - 1) right = true;
-                    if (i === rows - 1) bottom = true;
-                    if (j === 0) left = true;
-                    row.push({ top, right, bottom, left });
+                    row.push({ top: false, right: false, bottom: false, left: false, sprites: [] });
                 }
                 grid.push(row);
             }
-
-            const graphics = this.add.graphics({ lineStyle: { width: 1, color: 0x000000, alpha: 0 } });
-
+        
+            const graphics = this.add.graphics({ lineStyle: { width: 2, color: 0xff0000, alpha: 1 } });
+        
             const drawWalls = () => {
                 graphics.clear();
                 graphics.lineStyle(2, 0xff0000, 1);
@@ -125,65 +118,57 @@ class GameScene extends Phaser.Scene {
                         const cell = grid[i][j];
                         const x = j * GRIDSIZE;
                         const y = i * GRIDSIZE;
-                        const hitbox = (GRIDSIZE - 40, 0);
-
+        
+                        cell.sprites.forEach(sprite => sprite.destroy());
+                        cell.sprites = [];
+        
                         if (cell.top) {
-                            graphics.lineBetween(x, y, x + GRIDSIZE, y);
+                            graphics.strokeLineShape(new Phaser.Geom.Line(x, y, x + GRIDSIZE, y));
                             graphics.generateTexture('lineTextureTop', GRIDSIZE, 2);
                             let sprite = this.add.sprite(x + GRIDSIZE / 2, y, 'lineTextureTop');
                             this.walls.add(sprite);
-                            sprite.body.setSize(hitbox).setOffset(0, 3);
-                            existingWalls.add(`${i},${j},0`);
-                            emptyWalls.delete(`${i},${j},0`);
+                            sprite.body.setSize(GRIDSIZE, 2).setOffset(0, 0);
+                            cell.sprites.push(sprite);
                         }
                         if (cell.right) {
-                            graphics.lineBetween(x + GRIDSIZE, y, x + GRIDSIZE, y + GRIDSIZE);
+                            graphics.strokeLineShape(new Phaser.Geom.Line(x + GRIDSIZE, y, x + GRIDSIZE, y + GRIDSIZE));
                             graphics.generateTexture('lineTextureRight', 2, GRIDSIZE);
                             let sprite = this.add.sprite(x + GRIDSIZE, y + GRIDSIZE / 2, 'lineTextureRight');
                             this.walls.add(sprite);
-                            sprite.body.setSize(hitbox).setOffset(0, 3);
-                            existingWalls.add(`${i},${j},1`);
-                            emptyWalls.delete(`${i},${j},1`);
+                            sprite.body.setSize(2, GRIDSIZE).setOffset(0, 0);
+                            cell.sprites.push(sprite);
                         }
                         if (cell.bottom) {
-                            graphics.lineBetween(x, y + GRIDSIZE, x + GRIDSIZE, y + GRIDSIZE);
+                            graphics.strokeLineShape(new Phaser.Geom.Line(x, y + GRIDSIZE, x + GRIDSIZE, y + GRIDSIZE));
                             graphics.generateTexture('lineTextureBottom', GRIDSIZE, 2);
                             let sprite = this.add.sprite(x + GRIDSIZE / 2, y + GRIDSIZE, 'lineTextureBottom');
                             this.walls.add(sprite);
-                            sprite.body.setSize(hitbox).setOffset(0, 3);
-                            existingWalls.add(`${i},${j},2`);
-                            emptyWalls.delete(`${i},${j},2`);
+                            sprite.body.setSize(GRIDSIZE, 2).setOffset(0, 0);
+                            cell.sprites.push(sprite);
                         }
                         if (cell.left) {
-                            graphics.lineBetween(x, y, x, y + GRIDSIZE);
+                            graphics.strokeLineShape(new Phaser.Geom.Line(x, y, x, y + GRIDSIZE));
                             graphics.generateTexture('lineTextureLeft', 2, GRIDSIZE);
                             let sprite = this.add.sprite(x, y + GRIDSIZE / 2, 'lineTextureLeft');
                             this.walls.add(sprite);
-                            sprite.body.setSize(hitbox).setOffset(0, 3);
-                            existingWalls.add(`${i},${j},3`);
-                            emptyWalls.delete(`${i},${j},3`);
+                            sprite.body.setSize(2, GRIDSIZE).setOffset(0, 0);
+                            cell.sprites.push(sprite);
                         }
                     }
                 }
             }
-
+        
             const addRandomWall = () => {
-                let row, col, side;
-                let wallKey;
-                if (emptyWalls.size > 0) {
-                    const emptyWallsArray = Array.from(emptyWalls);
-                    wallKey = emptyWallsArray[Phaser.Math.Between(0, emptyWalls.size - 1)];
-                    row = parseInt(wallKey.split(",")[0]);
-                    col = parseInt(wallKey.split(",")[1]);
-                    side = parseInt(wallKey.split(",")[2]);
-                    emptyWalls.delete(wallKey);
-                    existingWalls.add(wallKey);
-                } else {
-                    // Some kind of menu comes here later
+                if (emptyWalls.size === 0) {
                     return;
                 }
-
-
+                const emptyWallsArray = Array.from(emptyWalls);
+                const wallKey = emptyWallsArray[Phaser.Math.Between(0, emptyWalls.size - 1)];
+                const [row, col, side] = wallKey.split(',').map(Number);
+        
+                emptyWalls.delete(wallKey);
+                existingWalls.add(wallKey);
+        
                 switch (side) {
                     case 0:
                         grid[row][col].top = true;
@@ -198,24 +183,64 @@ class GameScene extends Phaser.Scene {
                         grid[row][col].left = true;
                         break;
                 }
-
+        
                 drawWalls();
             }
-
-            // Call addRandomWall every 2 seconds
+        
             this.time.addEvent({
                 delay: 2000,
                 callback: addRandomWall,
                 callbackScope: this,
                 loop: true
             });
-
-            // The number of walls to add initially
-            let initWallCount = Math.floor(HEIGHT * WIDTH / 10000);
+        
+            const initWallCount = Math.floor(HEIGHT * WIDTH / 10000);
             for (let i = 0; i < initWallCount; i++) {
                 addRandomWall();
             }
+        
             drawWalls();
+        
+            this.removeWall = (x, y) => {
+                const col = Math.floor(x / GRIDSIZE);
+                const row = Math.floor(y / GRIDSIZE);
+                const xInCell = x % GRIDSIZE;
+                const yInCell = y % GRIDSIZE;
+                const tolerance = 20; // Increase tolerance to make wall removal more forgiving
+                const cell = grid[row][col];
+                let side = -1;
+
+                if (xInCell < tolerance && cell.left) {
+                    side = 3;
+                } else if (xInCell > GRIDSIZE - tolerance && cell.right) {
+                    side = 1;
+                } else if (yInCell < tolerance && cell.top) {
+                    side = 0;
+                } else if (yInCell > GRIDSIZE - tolerance && cell.bottom) {
+                    side = 2;
+                }
+
+                if (side !== -1) {
+                    switch (side) {
+                        case 0:
+                            cell.top = false;
+                            break;
+                        case 1:
+                            cell.right = false;
+                            break;
+                        case 2:
+                            cell.bottom = false;
+                            break;
+                        case 3:
+                            cell.left = false;
+                            break;
+                    }
+                    cell.sprites.forEach(sprite => sprite.destroy());
+                    cell.sprites = [];
+                    drawWalls();
+                    this.bombUseCounter--;
+                }
+            }
         }
 
         // Creating the player
@@ -235,6 +260,14 @@ class GameScene extends Phaser.Scene {
             ghost.setSize(ghost.width * 0.2, ghost.height * 0.2);
             ghost.setDepth(1);
         }
+
+        this.zombie = this.physics.add.sprite(50, 50, "zombie");
+        this.zombie.setCollideWorldBounds(true);
+        this.zombie.setSize(this.zombie.width * 0.8, this.zombie.height * 0.8);
+        this.zombie.setOffset(0, 5);
+        this.zombie.setDepth(1);
+        this.zombie.speed = 50;
+        this.physics.add.collider(this.zombie, this.walls);
 
         // Creating collectibles
         this.collectables = this.physics.add.group();
@@ -290,8 +323,8 @@ class GameScene extends Phaser.Scene {
         // Ghost movement
         const moveGhostRandomly = (ghost) => {
             if (this.cameras.main){
-            const x = Phaser.Math.Between(50, this.cameras.main.width - 50);
-            const y = Phaser.Math.Between(50, this.cameras.main.height - 50);
+            const x = Phaser.Math.Between(0, this.cameras.main.width);
+            const y = Phaser.Math.Between(0, this.cameras.main.height);
         
             let tween= this.tweens.add({
                 targets: ghost,
@@ -313,6 +346,29 @@ class GameScene extends Phaser.Scene {
             moveGhostRandomly(this.ghosts.getChildren()[i]);
         }
         
+        // Zombie movement
+        this.zombieMovement = this.time.addEvent({
+            delay: 300,
+            callback: () => {
+            const playerX = this.dude.x;
+            const playerY = this.dude.y;
+            const zombieX = this.zombie.x;
+            const zombieY = this.zombie.y;
+
+            const dx = playerX - zombieX;
+            const dy = playerY - zombieY;
+
+            const angle = Math.atan2(dy, dx);
+            const speedX = Math.cos(angle) * this.zombie.speed;
+            const speedY = Math.sin(angle) * this.zombie.speed;
+
+            this.zombie.setVelocity(speedX + Math.random() * 10 - 5, speedY + Math.random() * 10 - 5);
+            },
+            callbackScope: this,
+            loop: true
+        });
+
+
 
         // Everything to do with death
         {
@@ -323,6 +379,14 @@ class GameScene extends Phaser.Scene {
                     this.showDeathScreen();
                 }, 700);
             };
+
+            this.zombieDeath = (dude, zombie) => {
+                this.doDeath();
+                zombie.anims.play('zombieAttack', true);
+                setTimeout(() => {
+                    this.showDeathScreen();
+                }, 700);
+            }
         
             this.doDeath = () => {
                 this.dude.stop();
@@ -339,6 +403,13 @@ class GameScene extends Phaser.Scene {
                     ghost.body.setDrag(0);
                     ghost.anims.stop();
                 });
+
+                // Stop the movement of the zombie
+                this.zombieMovement.remove();
+                this.zombie.setVelocity(0);
+                this.zombie.body.setAcceleration(0);
+                this.zombie.body.setDrag(0);
+                this.zombie.anims.stop();
         
                 // Stop any animations currently playing on the dude
                 this.dude.anims.stop();
@@ -357,6 +428,13 @@ class GameScene extends Phaser.Scene {
                     this.ghostDeath(dude, ghost);
                 }
             }, null, this);
+
+            // Collision with zombie
+            this.physics.add.overlap(this.dude, this.zombie, (dude, zombie) => {
+                if (this.dudeAlive) {
+                    this.zombieDeath(dude, zombie);
+                }
+            }, null, this);
         }
 
         // Collecting items
@@ -368,7 +446,8 @@ class GameScene extends Phaser.Scene {
 
         this.physics.add.overlap(this.dude, this.bomb, (dude, bomb) => {
             // Gotta implement bomb functionality later
-            this.displayPopupMessage("You got a bomb! You can use it once to destroy a wall by clicking on it!");
+            this.displayPopupMessage("You got a bomb! You can use it to destroy "+this.bombUseCounter+" walls by slashing them with your mouse!");
+            this.hasBomb=true;
             bomb.destroy();
         }, null, this);
 
@@ -396,7 +475,6 @@ class GameScene extends Phaser.Scene {
 
         // Animations
         {
-
             // Dude animations
             this.anims.create({
                 key: 'walkDown',
@@ -531,6 +609,20 @@ class GameScene extends Phaser.Scene {
                 ]
             });
 
+            // Zombie animations
+            this.anims.create({
+                key: 'zombieWalk',
+                frames: this.anims.generateFrameNumbers('zombie', { start: 27, end: 33 }),
+                frameRate: 5,
+                repeat: -1
+            });
+
+            this.anims.create({
+                key: 'zombieAttack',
+                frames: this.anims.generateFrameNumbers('zombie', { start: 13, end: 19 }),
+                frameRate: 10,
+                repeat: -1
+            });
         }
 
     }
@@ -642,7 +734,16 @@ class GameScene extends Phaser.Scene {
 
             if (this.hasStopwatch && this.cursors.space.isDown) {
                 this.freezeTime();
+                this.displayPopupMessage("Time has been frozen for 5 seconds!");
                 this.hasStopwatch = false;
+            }
+
+            if (this.hasBomb && this.input.activePointer.isDown) {
+                this.removeWall(this.input.activePointer.x, this.input.activePointer.y);
+                if (this.bombUseCounter==0){
+                    this.displayPopupMessage("You have used all your bombs!");
+                    this.hasBomb=false;
+                }
             }
 
             if (this.dude.body.velocity.x === 0 && this.dude.body.velocity.y === 0) {
@@ -653,6 +754,8 @@ class GameScene extends Phaser.Scene {
             Phaser.Actions.Call(this.ghosts.getChildren(), function(ghost) {
             ghost.anims.play('ghostWalk', true);
             }, this);
+
+            this.zombie.anims.play('zombieWalk', true);
 
             this.collectables.getChildren().forEach(collectable => {
                 collectable.anims.play(collectable.name, true);
