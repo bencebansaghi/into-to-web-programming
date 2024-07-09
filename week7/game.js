@@ -43,6 +43,7 @@ class GameScene extends Phaser.Scene {
         this.bombUseCounter=5;
         this.isZombieMoving = true;
         this.zombieEvent = null;
+        this.targetExists = true;
     }
 
     init(data) {
@@ -688,10 +689,14 @@ class GameScene extends Phaser.Scene {
         return target;
     }
     checkScoreTarget() {
-        if (this.score >= this.targetScore) {
-            this.onTargetScoreReached();
+        if (this.score >= this.targetScore && this.targetExists) {
+            if (this.onTargetScoreReached()) {
             this.targetScore = this.score+this.generateRandomScoreTarget(50*this.difficulty, 50+50*this.difficulty);
             this.displayPopupMessage('You reached ' + this.score + ' points! The target score is now ' + this.targetScore + ' points!');
+            }
+            else {
+                this.targetExists=false;
+            }
         }
     }
     onTargetScoreReached() {
@@ -699,8 +704,10 @@ class GameScene extends Phaser.Scene {
             this.displayPopupMessage("You reached the target score! A unique item has spawned!");
             const randomChild = Phaser.Utils.Array.GetRandom(this.collectables.getChildren());
             randomChild.enableBody(false, randomChild.x, randomChild.y, true, true);
+            return true;
         } else {
-            this.displayPopupMessage("You reached the target score, but there are no items left to spawn!");
+            this.displayPopupMessage("You reached the target score, but there are no items left to spawn! Now you just get points and try to beat your high score!");
+            return false;
         }
 
         
