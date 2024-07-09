@@ -25,7 +25,7 @@ window.onload = function () {
         fps: {
             target: 60
         },
-        scene: [MainMenuScene, GameScene, GameOverScene, PauseScene]
+        scene: [MainMenuScene, GameOverScene, PauseScene]
     }
 
     game = new Phaser.Game(gameConfig)
@@ -41,6 +41,8 @@ class GameScene extends Phaser.Scene {
         this.popupMessages = [];
         this.tweensList = new Set();
         this.bombUseCounter=5;
+        this.isZombieMoving = true;
+        this.zombieEvent = null;
     }
 
     init(data) {
@@ -247,7 +249,6 @@ class GameScene extends Phaser.Scene {
                 }
             }
         }
-
         // Creating the player
         this.dude = this.physics.add.sprite(game.config.width / 3, game.config.height / 3, "dude");
         this.dude.setCollideWorldBounds(true);
@@ -352,26 +353,7 @@ class GameScene extends Phaser.Scene {
         }
         
         // Zombie movement
-        this.zombieMovement = this.time.addEvent({
-            delay: 300,
-            callback: () => {
-            const playerX = this.dude.x;
-            const playerY = this.dude.y;
-            const zombieX = this.zombie.x;
-            const zombieY = this.zombie.y;
-
-            const dx = playerX - zombieX;
-            const dy = playerY - zombieY;
-
-            const angle = Math.atan2(dy, dx);
-            const speedX = Math.cos(angle) * this.zombie.speed;
-            const speedY = Math.sin(angle) * this.zombie.speed;
-
-            this.zombie.setVelocity(speedX + Math.random() * 10 - 5, speedY + Math.random() * 10 - 5);
-            },
-            callbackScope: this,
-            loop: true
-        });
+        this.zombieMovement();
 
 
 
@@ -410,7 +392,7 @@ class GameScene extends Phaser.Scene {
                 });
 
                 // Stop the movement of the zombie
-                this.zombieMovement.remove();
+                this.isZombieMoving = false;
                 this.zombie.setVelocity(0);
                 this.zombie.body.setAcceleration(0);
                 this.zombie.body.setDrag(0);
@@ -423,7 +405,7 @@ class GameScene extends Phaser.Scene {
             this.showDeathScreen = () => {
                 this.game.renderer.snapshot((image) => {
                     this.scene.stop('GameScene');
-                    this.scene.start('GameOverScene', { snapshot: image, score: this.score });
+                    this.scene.start('GameOverScene', { snapshot: image, score: this.score, difficulty: this.difficulty });
                 });
             };
         
@@ -631,6 +613,33 @@ class GameScene extends Phaser.Scene {
         }
 
     }
+
+    zombieMovement() {
+        this.zombieEvent = this.time.addEvent({
+            delay: 300,
+            callback: () => {
+                if (!this.isZombieMoving) {
+                    return;
+                }
+
+                const playerX = this.dude.x;
+                const playerY = this.dude.y;
+                const zombieX = this.zombie.x;
+                const zombieY = this.zombie.y;
+
+                const dx = playerX - zombieX;
+                const dy = playerY - zombieY;
+
+                const angle = Math.atan2(dy, dx);
+                const speedX = Math.cos(angle) * this.zombie.speed;
+                const speedY = Math.sin(angle) * this.zombie.speed;
+
+                this.zombie.setVelocity(speedX + Math.random() * 10 - 5, speedY + Math.random() * 10 - 5);
+            },
+            callbackScope: this,
+            loop: true
+        });
+    }
     
     displayPopupMessage(message) {
         // Create a new text object for the popup message
@@ -765,7 +774,9 @@ class GameScene extends Phaser.Scene {
             ghost.anims.play('ghostWalk', true);
             }, this);
 
-            this.zombie.anims.play('zombieWalk', true);
+            if (this.isZombieMoving){
+                this.zombie.anims.play('zombieWalk', true);
+            }
 
             this.collectables.getChildren().forEach(collectable => {
                 collectable.anims.play(collectable.name, true);
@@ -786,15 +797,23 @@ class GameScene extends Phaser.Scene {
         this.tweensList.forEach(tween => {
             tween.pause();
         });
+
+        this.isZombieMoving = false;
+        this.zombie.setVelocity(0);
+        this.zombie.body.setAcceleration(0);
+        this.zombie.body.setDrag(0);
+        this.zombie.anims.pause();
     
         // Set a timer to resume all tweens and animations after 5 seconds
         this.time.delayedCall(5000, () => {
             this.ghosts.getChildren().forEach(ghost => {
                 ghost.anims.resume();
             });
+            this.zombie.anims.resume();
             this.tweensList.forEach(tween => {
                 tween.resume();
             });
+            this.isZombieMoving = true;
         });
     }
 }
@@ -822,17 +841,17 @@ class MainMenuScene extends Phaser.Scene {
 
         easyButton.on('pointerdown', () => {
             this.scene.stop('MainMenuScene');
-            this.scene.start('GameScene', { difficulty: 1 });
+            this.scene.add('GameScene', GameScene, true, { difficulty: 1 });
         });
 
         mediumButton.on('pointerdown', () => {
             this.scene.stop('MainMenuScene');
-            this.scene.start('GameScene', { difficulty: 2 });
+            this.scene.add('GameScene', GameScene, true, { difficulty: 2 });
         });
 
         hardButton.on('pointerdown', () => {
             this.scene.stop('MainMenuScene');
-            this.scene.start('GameScene', { difficulty: 3 });
+            this.scene.add('GameScene', GameScene, true, { difficulty: 3 });
         });
     }
 }
@@ -843,6 +862,7 @@ class GameOverScene extends Phaser.Scene {
     }
 
     create(data) {
+        this.scene.remove('GameScene');
         const currentScore = data.score || 0;
         const highScore = localStorage.getItem('highScore') || 0;
 
@@ -884,7 +904,7 @@ class GameOverScene extends Phaser.Scene {
 
         restartButton.on('pointerdown', () => {
             this.scene.stop('GameOverScene');
-            this.scene.start('GameScene');
+            this.scene.add('GameScene', GameScene, true, { difficulty: data.difficulty });
         });
 
         mainMenuButton.on('pointerdown', () => {
@@ -893,7 +913,6 @@ class GameOverScene extends Phaser.Scene {
         });
     }
 }
-
 
 class PauseScene extends Phaser.Scene {
     constructor() {
@@ -905,6 +924,8 @@ class PauseScene extends Phaser.Scene {
         const resumeButton = this.add.text(WIDTH / 2, HEIGHT / 2, 'Resume', { fill: '#ffffff', fontSize: '24px', backgroundColor: '#000000' }).setOrigin(0.5).setInteractive();
         const mainMenuButton = this.add.text(WIDTH / 2, HEIGHT / 2 + 50, 'Main Menu', { fill: '#ffffff', fontSize: '24px', backgroundColor: '#000000' }).setOrigin(0.5).setInteractive();
 
+        // Set the depth of the PauseScene elements to be above the GameScene elements
+        this.scene.bringToTop('PauseScene');
 
         resumeButton.on('pointerdown', () => {
             this.scene.stop('PauseScene');
@@ -915,6 +936,11 @@ class PauseScene extends Phaser.Scene {
             this.scene.stop('PauseScene');
             this.scene.stop('GameScene');
             this.scene.start('MainMenuScene');
+        });
+
+        this.input.keyboard.on('keydown-ESC', () => {
+            this.scene.stop('PauseScene');
+            this.scene.resume('GameScene');
         });
     }
 }
