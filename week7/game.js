@@ -25,7 +25,7 @@ window.onload = function () {
         fps: {
             target: 60
         },
-        scene: [MainMenuScene, GameScene, GameOverScene]
+        scene: [MainMenuScene, GameScene, GameOverScene, PauseScene]
     }
 
     game = new Phaser.Game(gameConfig)
@@ -323,6 +323,7 @@ class GameScene extends Phaser.Scene {
             right: Phaser.Input.Keyboard.KeyCodes.D,
             shift: Phaser.Input.Keyboard.KeyCodes.SHIFT
         });
+        this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
         // Ghost movement
         const moveGhostRandomly = (ghost) => {
@@ -705,6 +706,11 @@ class GameScene extends Phaser.Scene {
             let moveX = 0;
             let moveY = 0;
 
+            if (this.escapeKey.isDown) {
+                this.scene.pause('GameScene');
+                this.scene.launch('PauseScene');
+            }
+
             if (this.cursors.left.isDown || this.wasd.left.isDown) {
                 moveX = -1;
             } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
@@ -812,7 +818,7 @@ class MainMenuScene extends Phaser.Scene {
         const easyButton = this.add.text(WIDTH / 2, HEIGHT / 2-50, 'Easy mode', buttonConfig).setOrigin(0.5, 0.5).setInteractive();
         const mediumButton = this.add.text(WIDTH / 2, HEIGHT / 2, 'Medium mode', buttonConfig).setOrigin(0.5, 0.5).setInteractive();
         const hardButton = this.add.text(WIDTH / 2, HEIGHT / 2 + 50, 'Hard mode', buttonConfig).setOrigin(0.5, 0.5).setInteractive();
-        this.add.text(WIDTH / 2, HEIGHT / 2 + 100, 'Controls: Arrow keys or WASD to move, Shift to run, Space to freeze time, Mouse to use bomb', { fill: '#fff', fontSize: '12px' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2 + 110, 'Controls: Arrow keys or WASD to move, Shift to run, Space to freeze time,\nMouse to use bomb, Escape to pause', { fill: '#fff', fontSize: '12px', align: 'center' }).setOrigin(0.5);
 
         easyButton.on('pointerdown', () => {
             this.scene.stop('MainMenuScene');
@@ -844,9 +850,6 @@ class GameOverScene extends Phaser.Scene {
             localStorage.setItem('highScore', currentScore);
         }
 
-        this.add.text(WIDTH / 2, HEIGHT / 2 - 50, `Score: ${currentScore}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
-        this.add.text(WIDTH / 2, HEIGHT / 2, `High Score: ${Math.max(currentScore, highScore)}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
-
         if (data.snapshot) {
             const snapshot = data.snapshot;
 
@@ -857,7 +860,7 @@ class GameOverScene extends Phaser.Scene {
             
             this.textures.addImage('snapshot', snapshot);
 
-            // Create a sprite from the texture
+            // Create a sprite from the texture and apply the fade effect
             const snapshotSprite = this.add.sprite(0, 0, 'snapshot').setOrigin(0, 0);
             this.add.tween({
                 targets: snapshotSprite,
@@ -867,18 +870,51 @@ class GameOverScene extends Phaser.Scene {
             });
         }
 
-        setTimeout(() => {
-            this.add.text(WIDTH / 2, HEIGHT / 2 - 125, 'Game Over', { fill: '#ff0000', fontSize: '55px', fontWeight: 'bold' }).setOrigin(0.5);
-            const restartButton = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 100, 'Restart Game', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' })
-                .setOrigin(0.5, 0.5)
-                .setInteractive();
+        // Add text elements after the background snapshot sprite
+        this.add.text(WIDTH / 2, HEIGHT / 2 - 125, 'Game Over', { fill: '#ff0000', fontSize: '55px', fontWeight: 'bold' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2 - 55, `Score: ${currentScore}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
+        this.add.text(WIDTH / 2, HEIGHT / 2, `High Score: ${Math.max(currentScore, highScore)}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
 
-            restartButton.on('pointerdown', () => {
-                this.scene.stop('GameOverScene');
-                this.scene.start('GameScene');
-            });
-        }, 750);
+        const restartButton = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 50, 'Restart Game', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' })
+            .setOrigin(0.5, 0.5)
+            .setInteractive();
+        const mainMenuButton = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 100, 'Main Menu', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' })
+            .setOrigin(0.5, 0.5)
+            .setInteractive();
+
+        restartButton.on('pointerdown', () => {
+            this.scene.stop('GameOverScene');
+            this.scene.start('GameScene');
+        });
+
+        mainMenuButton.on('pointerdown', () => {
+            this.scene.stop('GameOverScene');
+            this.scene.start('MainMenuScene');
+        });
     }
 }
 
 
+class PauseScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'PauseScene' });
+    }
+
+    create() {
+        this.add.text(WIDTH / 2, HEIGHT / 2 - 50, 'Game Paused', { fill: '#ffffff', fontSize: '32px', backgroundColor: '#000000' }).setOrigin(0.5);
+        const resumeButton = this.add.text(WIDTH / 2, HEIGHT / 2, 'Resume', { fill: '#ffffff', fontSize: '24px', backgroundColor: '#000000' }).setOrigin(0.5).setInteractive();
+        const mainMenuButton = this.add.text(WIDTH / 2, HEIGHT / 2 + 50, 'Main Menu', { fill: '#ffffff', fontSize: '24px', backgroundColor: '#000000' }).setOrigin(0.5).setInteractive();
+
+
+        resumeButton.on('pointerdown', () => {
+            this.scene.stop('PauseScene');
+            this.scene.resume('GameScene');
+        });
+
+        mainMenuButton.on('pointerdown', () => {
+            this.scene.stop('PauseScene');
+            this.scene.stop('GameScene');
+            this.scene.start('MainMenuScene');
+        });
+    }
+}
