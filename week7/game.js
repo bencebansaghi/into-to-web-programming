@@ -318,6 +318,7 @@ class GameScene extends Phaser.Scene {
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
+        this.cursors.v = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
         this.wasd = this.input.keyboard.addKeys({
             up: Phaser.Input.Keyboard.KeyCodes.W,
             down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -327,7 +328,7 @@ class GameScene extends Phaser.Scene {
         });
         this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
-        // Ghost movement
+
         const moveGhostRandomly = (ghost) => {
             if (this.cameras.main){
             const x = Phaser.Math.Between(0, this.cameras.main.width);
@@ -353,10 +354,7 @@ class GameScene extends Phaser.Scene {
             moveGhostRandomly(this.ghosts.getChildren()[i]);
         }
         
-        // Zombie movement
         this.zombieMovement();
-
-
 
         // Everything to do with death
         {
@@ -384,7 +382,6 @@ class GameScene extends Phaser.Scene {
                 this.dudeAlive = false;
                 this.tweens.killAll();
         
-                // Stop the movement of all ghosts
                 this.ghosts.getChildren().forEach(ghost => {
                     ghost.setVelocity(0);
                     ghost.body.setAcceleration(0);
@@ -392,14 +389,12 @@ class GameScene extends Phaser.Scene {
                     ghost.anims.stop();
                 });
 
-                // Stop the movement of the zombie
                 this.isZombieMoving = false;
                 this.zombie.setVelocity(0);
                 this.zombie.body.setAcceleration(0);
                 this.zombie.body.setDrag(0);
                 this.zombie.anims.stop();
         
-                // Stop any animations currently playing on the dude
                 this.dude.anims.stop();
             };
         
@@ -410,14 +405,13 @@ class GameScene extends Phaser.Scene {
                 });
             };
         
-            // Collision with ghosts
+            // Collision with enemies
             this.physics.add.overlap(this.dude, this.ghosts, (dude, ghost) => {
                 if (this.dudeAlive) {
                     this.ghostDeath(dude, ghost);
                 }
             }, null, this);
 
-            // Collision with zombie
             this.physics.add.overlap(this.dude, this.zombie, (dude, zombie) => {
                 if (this.dudeAlive) {
                     this.zombieDeath(dude, zombie);
@@ -433,7 +427,6 @@ class GameScene extends Phaser.Scene {
         }, null, this);
 
         this.physics.add.overlap(this.dude, this.bomb, (dude, bomb) => {
-            // Gotta implement bomb functionality later
             this.displayPopupMessage("You got a bomb! You can use it to destroy "+this.bombUseCounter+" walls by slashing them with your mouse!");
             this.hasBomb=true;
             bomb.destroy();
@@ -643,20 +636,14 @@ class GameScene extends Phaser.Scene {
     }
     
     displayPopupMessage(message) {
-        // Create a new text object for the popup message
         const popup = this.add.text(game.config.width - 10, 10, message, {
             font: '16px Arial',
             fill: '#ffffff',
             backgroundColor: '#000000'
         }).setScrollFactor(0).setVisible(true).setOrigin(1, 0);
 
-        // Add the popup to the array of active popup messages
         this.popupMessages.push(popup);
-
-        // Adjust positions of all active popup messages
         this.adjustPopupMessagePositions();
-
-        // Remove the popup message after 3 seconds
         this.time.delayedCall(5000, () => {
             popup.destroy();
             this.popupMessages = this.popupMessages.filter(msg => msg !== popup);
@@ -665,12 +652,10 @@ class GameScene extends Phaser.Scene {
     }
 
     adjustPopupMessagePositions() {
-        // Adjust the Y position of each active popup message
         this.popupMessages.forEach((popup, index) => {
-            popup.setY(10 + index * 20); // Adjust 20 pixels below the previous message
+            popup.setY(10 + index * 20);
         });
     }
-
 
     createCollectableAnimation(collectable, textureKey, startFrame) {
         this.anims.create({
@@ -773,8 +758,12 @@ class GameScene extends Phaser.Scene {
             }
 
             if (this.dude.body.velocity.x === 0 && this.dude.body.velocity.y === 0) {
-                //dude.anims.play('victoryDance', true);
-                this.dude.anims.play('idle', true);
+                if (this.cursors.v.isDown) {
+                    this.dude.anims.play('victoryDance', true);
+                }
+                else {
+                    this.dude.anims.play('idle', true);
+                }
             }
 
             Phaser.Actions.Call(this.ghosts.getChildren(), function(ghost) {
@@ -795,12 +784,10 @@ class GameScene extends Phaser.Scene {
         }
     }
     freezeTime() {
-        // Pause all enemy animations
         this.ghosts.getChildren().forEach(ghost => {
             ghost.anims.pause();
         });
     
-        // Pause all tweens in this.tweensList
         this.tweensList.forEach(tween => {
             tween.pause();
         });
@@ -811,7 +798,6 @@ class GameScene extends Phaser.Scene {
         this.zombie.body.setDrag(0);
         this.zombie.anims.pause();
     
-        // Set a timer to resume all tweens and animations after 5 seconds
         this.time.delayedCall(5000, () => {
             this.ghosts.getChildren().forEach(ghost => {
                 ghost.anims.resume();
@@ -880,7 +866,6 @@ class GameOverScene extends Phaser.Scene {
         if (data.snapshot) {
             const snapshot = data.snapshot;
 
-            // Create a texture from the snapshot
             if (this.textures.exists('snapshot')) {
                 this.textures.remove('snapshot');
             }
@@ -897,7 +882,6 @@ class GameOverScene extends Phaser.Scene {
             });
         }
 
-        // Add text elements after the background snapshot sprite
         this.add.text(WIDTH / 2, HEIGHT / 2 - 125, 'Game Over', { fill: '#ff0000', fontSize: '55px', fontWeight: 'bold' }).setOrigin(0.5);
         this.add.text(WIDTH / 2, HEIGHT / 2 - 55, `Score: ${currentScore}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
         this.add.text(WIDTH / 2, HEIGHT / 2, `High Score: ${Math.max(currentScore, highScore)}`, { fill: '#ffffff', fontSize: '32px' }).setOrigin(0.5);
@@ -931,7 +915,6 @@ class PauseScene extends Phaser.Scene {
         const resumeButton = this.add.text(WIDTH / 2, HEIGHT / 2, 'Resume', { fill: '#ffffff', fontSize: '24px', backgroundColor: '#000000' }).setOrigin(0.5).setInteractive();
         const mainMenuButton = this.add.text(WIDTH / 2, HEIGHT / 2 + 50, 'Main Menu', { fill: '#ffffff', fontSize: '24px', backgroundColor: '#000000' }).setOrigin(0.5).setInteractive();
 
-        // Set the depth of the PauseScene elements to be above the GameScene elements
         this.scene.bringToTop('PauseScene');
 
         resumeButton.on('pointerdown', () => {
